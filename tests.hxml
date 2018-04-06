@@ -1,0 +1,3 @@
+-cp tests
+-cp src
+--run RunTests
