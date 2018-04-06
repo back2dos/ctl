@@ -1,4 +1,5 @@
-# Cytotoxic T cells for your codebase
+# Cytotoxic T Cells for your codebase <sup>*</sup>
+<sup>*(Well, it's really just a fancy dead code reporter to be honest)</sup>
 
 Usage: `-lib ctl`
 
