@@ -22,12 +22,13 @@ class Dead {
 }
 
 abstract DeadAbstract(String) {
-
+  public function alive() trace("alive");
+  public function dead() trace("dead");
 }
 
 abstract AliveAbstract(String) {
   public function new() this = "alive";
-  public inline function alive() trace("alive");
+  public function alive() trace("alive");
   public function dead() trace("dead");
 
 }
@@ -35,11 +36,12 @@ abstract AliveAbstract(String) {
 
 @:generic class DeadGeneric<T> {
   public function new() {}
+  public function alive() trace("alive");
+  public function dead() trace("dead");  
 }
 
 @:generic class AliveGeneric<T> {
   public function new() {}
   public function alive() trace("alive");
   public function dead() trace("dead");
-  
 }

@@ -24,71 +24,85 @@ class TCell {
   static function unleash() {
     #if (dce == "full")
     if (!Context.defined('ctl-skip')) Context.onGenerate(function (types) {
-      var stdLib = 
-        switch Sys.getEnv('HAXE_STD_PATH') {
-          case null: Context.fatalError('Variable HAXE_STD_PATH is not set', Context.currentPos());
-          case v: v;
-        }
+      var cwd = Sys.getCwd();
 
-      function std(b:BaseType) 
-        return b.pos.getPosInfos().file.startsWith(stdLib);
+      function inCwd(b:BaseType) 
+        return !haxe.io.Path.isAbsolute(b.pos.getPosInfos().file);
       
       var oldFields = new Map(),
           generics = new Map();
 
       for (t in types) switch t {
-        case TInst(_.get() => cl = { isExtern: false }, _) if (!std(cl)):
+
+        case TInst(_.get() => cl = { isExtern: false }, _) if (inCwd(cl)):
+          
           switch cl.kind {
             case KGenericInstance(_.get() => cl, _):
               generics[name(cl)] = true;
             default:
           }
-          oldFields[name(cl)] = fieldsOf(cl);
+
+          switch fieldsOf(cl) {
+            case _.iterator().hasNext() => false:
+            case v: oldFields[name(cl)] = v;
+          }
+
         default:
       }
 
       Context.onAfterGenerate(function () {
+
         var deadTypes = [],
             deadFields = [];
 
         function isDead(t:BaseType, ?owner:BaseType) 
           return
             if (owner == null) isDead(t, t);
-            else if (!t.meta.has(':used'))
+            else if (oldFields.exists(name(t)) && !t.meta.has(':used'))
               deadTypes.push(owner) > 0;
             else false;
 
         function classFields(cl:ClassType, ?owner:BaseType) {
           if (owner == null) owner = cl;
-          var nu = fieldsOf(cl);
 
-          switch [for (f in oldFields[name(cl)]) if (!nu.exists(f.name)) f] {
-            case []:
-            case dead:
-              deadFields.push({
-                type: owner,
-                fields: dead,
-              });
+          switch oldFields[name(cl)] {
+            case null:
+            case old: 
+              var nu = fieldsOf(cl);
+              switch [for (f in old) if (!nu.exists(f.name)) f] {
+                case []:
+                case dead:
+                  deadFields.push({
+                    type: owner,
+                    fields: dead,
+                  });
+              }
           }
         }
 
         for (t in types) switch t {
 
-          case TInst(_.get() => cl = { isExtern: false, kind: KGeneric }, _) if (!std(cl))://TODO: deal with generics
+          case TInst(_.get() => cl = { isExtern: false, kind: KGeneric }, _) if (inCwd(cl))://TODO: deal with generics
             
             if (!generics[name(cl)]) deadTypes.push(cl);
 
-          case TInst(ref = _.get() => cl = { isExtern: false, kind: KNormal | KGenericInstance(_, _) }, _) if (!std(cl)):
+          case TInst(ref = _.get() => cl = { isExtern: false, kind: KNormal | KGenericInstance(_, _) }, _) if (inCwd(cl)):
             
             if (!isDead(cl)) classFields(cl);
 
-          case TInst(_.get() => cl = { isExtern: false, kind: KAbstractImpl(_.get() => a) }, _) if (!std(cl)):
+          case TInst(_.get() => cl = { isExtern: false, kind: KAbstractImpl(_.get() => a) }, _) if (inCwd(cl)):
             
             if (!isDead(cl, a)) classFields(cl, a);
           
           default:
         }
+
         if (Context.defined('ctl-warn')) {
+          for (t in deadTypes)
+            'Unused type'.warning(t.pos);
+          for (f in deadFields)
+            for (f in f.fields)
+              'Unused field'.warning(f.pos);
           return;
         }
 
@@ -147,7 +161,7 @@ class TCell {
             }
             output(lines.join('\n') + '\n');
           case 'json':
-            render(haxe.Json.stringify.bind());
+            render(haxe.Json.stringify.bind(_, null, '  '));
           case 'hx': 
             render(haxe.Serializer.run);
           case v: 'Unsupported format $v'.fatalError(Context.currentPos()); 
